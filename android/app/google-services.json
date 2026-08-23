@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "694030655377",
+    "project_id": "deliverymanager-ffaf1",
+    "storage_bucket": "deliverymanager-ffaf1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:694030655377:android:c1a0a66abb025a7e420430",
+        "android_client_info": {
+          "package_name": "com.example.cod_delivery_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQWhSKITj5Yl8-Wf4Y8AYqD_idgc6bMDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -20,5 +20,11 @@ abstract interface class AuthRepository {
 
   Future<void> signInWithGoogle();
 
+  Future<void> updateProfile({
+    required String uid,
+    required String name,
+    required String phone,
+  });
+
   Future<void> signOut();
 }

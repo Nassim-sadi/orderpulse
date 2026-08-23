@@ -1,9 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../app/locale_cubit.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
+
+class LanguageDropdown extends StatelessWidget {
+  const LanguageDropdown({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return BlocBuilder<LocaleCubit, Locale>(
+      builder: (context, locale) => DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: locale.languageCode,
+          dropdownColor: const Color(0xFF212B3D),
+          borderRadius: BorderRadius.circular(12),
+          icon: const Icon(Icons.language, size: 18),
+          items: [
+            DropdownMenuItem(value: 'en', child: Text(l10n.langEnglish)),
+            DropdownMenuItem(value: 'ar', child: Text(l10n.langArabic)),
+            DropdownMenuItem(value: 'fr', child: Text(l10n.langFrench)),
+          ],
+          onChanged: (code) {
+            if (code != null) {
+              context.read<LocaleCubit>().setLanguage(code);
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,6 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -46,6 +78,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: const LanguageDropdown(),
+                    ),
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
@@ -59,27 +95,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'OrderPulse',
+                    Text(
+                      l10n.appTitle,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
                     ),
-                    const Text(
-                      'Driver Field Operations',
+                    Text(
+                      l10n.loginSubtitle,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white54),
+                      style: const TextStyle(color: Colors.white54),
                     ),
                     const SizedBox(height: 32),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.alternate_email),
+                      decoration: InputDecoration(
+                        labelText: l10n.emailLabel,
+                        prefixIcon: const Icon(Icons.alternate_email),
                       ),
                       validator: (v) =>
-                          (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
+                          (v == null || !v.contains('@')) ? l10n.enterValidEmail : null,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
@@ -87,12 +123,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: true,
                       autofillHints: const [AutofillHints.password],
                       onFieldSubmitted: (_) => _submit(context),
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                      decoration: InputDecoration(
+                        labelText: l10n.passwordLabel,
+                        prefixIcon: const Icon(Icons.lock_outline),
                       ),
                       validator: (v) => (v == null || v.length < 6)
-                          ? 'Minimum 6 characters'
+                          ? l10n.minSixCharacters
                           : null,
                     ),
                     const SizedBox(height: 20),
@@ -107,9 +143,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: FilledButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                   ),
-                                  child: const Text('Sign in',
+                                  child: Text(l10n.signIn,
                                       style:
-                                          TextStyle(fontWeight: FontWeight.w800)),
+                                          const TextStyle(fontWeight: FontWeight.w800)),
                                 ),
                                 const SizedBox(height: 10),
                                 OutlinedButton.icon(
@@ -118,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     height: 20,
                                     errorBuilder: (_, _, _) => const Icon(Icons.g_mobiledata, size: 26),
                                   ),
-                                  label: const Text('Continue with Google'),
+                                  label: Text(l10n.continueWithGoogle),
                                   onPressed: () => context
                                       .read<AuthBloc>()
                                       .add(const AuthGoogleSignInRequested()),
@@ -136,12 +172,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('New driver? ',
-                            style: TextStyle(color: Colors.white54)),
+                        Text(l10n.newDriverPrompt,
+                            style: const TextStyle(color: Colors.white54)),
                         GestureDetector(
                           onTap: () => Navigator.pushNamed(context, '/register'),
                           child: Text(
-                            'Create an account',
+                            l10n.createAccount,
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: Theme.of(context).colorScheme.primary,

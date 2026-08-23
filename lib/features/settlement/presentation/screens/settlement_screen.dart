@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/utils/formatters.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/settlement_entity.dart';
 import '../bloc/settlement_bloc.dart';
 import '../bloc/settlement_event.dart';
@@ -14,6 +15,7 @@ class SettlementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return BlocBuilder<SettlementBloc, SettlementState>(
       builder: (context, state) {
         final summary = state.summary;
@@ -31,8 +33,8 @@ class SettlementScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('TODAY',
-                      style: TextStyle(
+                  Text(l10n.todayLabel,
+                      style: const TextStyle(
                           fontSize: 10,
                           letterSpacing: 1.2,
                           fontWeight: FontWeight.w800,
@@ -45,9 +47,8 @@ class SettlementScreen extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 30, fontWeight: FontWeight.w900),
                   ),
-                  const Text(
-                      'Cash in hand to hand over at the depot',
-                      style: TextStyle(fontSize: 12, color: Colors.white54)),
+                  Text(l10n.cashInHandNote,
+                      style: const TextStyle(fontSize: 12, color: Colors.white54)),
                   const SizedBox(height: 14),
                   Row(
                     children: [
@@ -80,8 +81,8 @@ class SettlementScreen extends StatelessWidget {
                           : Icon(submittedToday ? Icons.check_circle : Icons.assignment_turned_in),
                       label: Text(
                         submittedToday
-                            ? 'Settlement already submitted for today'
-                            : 'Submit end-of-day settlement',
+                            ? l10n.settlementSubmittedToday
+                            : l10n.submitSettlement,
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: submittedToday
@@ -94,16 +95,15 @@ class SettlementScreen extends StatelessWidget {
                   if (state.submitStatus == SettlementSubmitStatus.success &&
                       !submittedToday) ...[
                     const SizedBox(height: 8),
-                    const Text(
-                        'Submitted — awaiting manager approval.',
-                        style: TextStyle(color: Color(0xFF2FD07A), fontSize: 12)),
+                    Text(l10n.settlementAwaitingApproval,
+                        style: const TextStyle(color: Color(0xFF2FD07A), fontSize: 12)),
                   ],
                 ],
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              'SETTLEMENT HISTORY',
+              l10n.settlementHistory,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
@@ -113,11 +113,11 @@ class SettlementScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             if (!state.isLoading && state.settlements.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
-                  child: Text('No settlements yet.',
-                      style: TextStyle(color: Colors.white38)),
+                  child: Text(l10n.noSettlementsYet,
+                      style: const TextStyle(color: Colors.white38)),
                 ),
               )
             else
@@ -194,7 +194,7 @@ class _SettlementCard extends StatelessWidget {
           style: const TextStyle(fontSize: 12),
         ),
         trailing: Text(
-          pending ? 'PENDING' : 'APPROVED',
+          pending ? AppLocalizations.of(context).statusPendingShort : AppLocalizations.of(context).statusApprovedShort,
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w800,

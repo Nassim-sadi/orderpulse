@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/firestore_keys.dart';
 import '../../domain/entities/order_entity.dart';
 import '../../domain/repositories/order_repository.dart';
@@ -14,6 +15,12 @@ class FirestoreOrderRepository implements OrderRepository {
 
   CollectionReference<Map<String, dynamic>> get _orders =>
       _firestore.collection(FirestoreCollections.orders);
+
+  CollectionReference<Map<String, dynamic>> get _notifications =>
+      _firestore.collection(FirestoreCollections.notifications);
+
+  CollectionReference<Map<String, dynamic>> get _drivers =>
+      _firestore.collection(FirestoreCollections.drivers);
 
   @override
   Stream<List<OrderEntity>> watchDriverOrders(String driverId) {
@@ -33,22 +40,72 @@ class FirestoreOrderRepository implements OrderRepository {
     return _expireAndMap(snapshot);
   }
 
+  @override
+  Stream<List<OrderEntity>> watchPendingVerifications() {
+    return _orders
+        .where(OrderKeys.status,
+            isEqualTo: OrderStatus.failedPendingVerification.value)
+        .snapshots()
+        .map((snap) {
+      final orders =
+          snap.docs.map((d) => OrderModel.fromMap(d.id, d.data())).toList();
+      orders.sort((a, b) => (a.audit?.verificationDeadline ??
+              a.createdAt)
+          .compareTo(b.audit?.verificationDeadline ?? b.createdAt));
+      return orders;
+    });
+  }
+
   List<OrderEntity> _expireAndMap(QuerySnapshot<Map<String, dynamic>> snap) {
     final orders = <OrderEntity>[];
-    final expiredWrites = <String, Map<String, dynamic>>{};
+    final writes = <String, Map<String, dynamic>>{};
     for (final doc in snap.docs) {
       final order = OrderModel.fromMap(doc.id, doc.data());
+      final now = DateTime.now();
+
       if (order.verificationExpired) {
-        expiredWrites[doc.id] = {
+        writes[doc.id] = {
           OrderKeys.status: OrderStatus.returned.value,
-          OrderKeys.updatedAt: DateTime.now().toIso8601String(),
+          OrderKeys.updatedAt: now.toIso8601String(),
         };
+        unawaited(_pushNotification(
+          type: NotificationType.returnedAuto,
+          orderId: order.id,
+          severity: 'normal',
+          message:
+              'Verification window expired without merchant intervention. '
+              'Order ${order.trackingNumber} returned.',
+          driverId: order.assignedDriver.id,
+        ));
+        orders.add(order.copyWith(status: OrderStatus.returned));
+        continue;
       }
+
+      if (order.responseTimerExpired) {
+        writes[doc.id] = {
+          OrderKeys.driverResponseExpiredAt: now.toIso8601String(),
+          OrderKeys.updatedAt: now.toIso8601String(),
+        };
+        unawaited(_pushNotification(
+          type: NotificationType.driverNoResponse,
+          orderId: order.id,
+          severity: 'high',
+          message:
+              'Driver did not report an outcome for ${order.trackingNumber} '
+              'within the response window.',
+          driverId: order.assignedDriver.id,
+        ));
+        unawaited(
+            _penalizeDriver(order.assignedDriver.id, AppConstants.noResponsePenalty));
+        orders.add(order.copyWith(driverResponseExpiredAt: now));
+        continue;
+      }
+
       orders.add(order);
     }
-    if (expiredWrites.isNotEmpty) {
+    if (writes.isNotEmpty) {
       final batch = _firestore.batch();
-      expiredWrites.forEach((docId, data) {
+      writes.forEach((docId, data) {
         batch.update(_orders.doc(docId), data);
       });
       unawaited(batch.commit());
@@ -98,6 +155,7 @@ class FirestoreOrderRepository implements OrderRepository {
           assignedDriver:
               DriverRef(id: driverId, name: driverName, phone: driverPhone),
           audit: audit,
+          attempts: audit == null ? const [] : [audit],
           createdAt: now.subtract(Duration(hours: hoursAgo)),
           updatedAt: now.subtract(Duration(hours: hoursAgo)),
         );
@@ -213,6 +271,37 @@ class FirestoreOrderRepository implements OrderRepository {
   }
 
   @override
+  Future<void> logCallAttempt({
+    required String orderId,
+    required String driverId,
+    required String clientPhone,
+    required Duration responseWindow,
+  }) async {
+    final query = await _orders
+        .where(OrderKeys.orderId, isEqualTo: orderId)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) {
+      throw StateError('Order $orderId not found');
+    }
+    final doc = query.docs.first;
+    final now = DateTime.now();
+    await doc.reference.collection(FirestoreCollections.callAttempts).add({
+      CallAttemptKeys.orderId: orderId,
+      CallAttemptKeys.driverId: driverId,
+      CallAttemptKeys.clientPhone: clientPhone,
+      CallAttemptKeys.createdAt: now.toIso8601String(),
+    });
+    await doc.reference.update({
+      OrderKeys.callAttemptsCount: FieldValue.increment(1),
+      OrderKeys.driverResponseDeadline:
+          now.add(responseWindow).toIso8601String(),
+      OrderKeys.driverResponseExpiredAt: null,
+      OrderKeys.updatedAt: now.toIso8601String(),
+    });
+  }
+
+  @override
   Future<void> reportDeliveryFailure({
     required String orderId,
     required FailureReason reason,
@@ -222,6 +311,7 @@ class FirestoreOrderRepository implements OrderRepository {
     required double longitude,
     required double accuracyMeters,
     required Duration verificationWindow,
+    required bool verifiedCall,
   }) async {
     final query = await _orders
         .where(OrderKeys.orderId, isEqualTo: orderId)
@@ -230,25 +320,45 @@ class FirestoreOrderRepository implements OrderRepository {
     if (query.docs.isEmpty) {
       throw StateError('Order $orderId not found');
     }
+    final doc = query.docs.first;
+    final order = OrderModel.fromMap(doc.id, doc.data());
     final now = DateTime.now();
-    await query.docs.first.reference.update({
+    final audit = AttemptAudit(
+      callInitiatedAt: callInitiatedAt,
+      callDurationSeconds: callDurationSeconds,
+      location: GpsLocation(
+        latitude: latitude,
+        longitude: longitude,
+        accuracyMeters: accuracyMeters,
+      ),
+      reason: reason,
+      verificationDeadline: now.add(verificationWindow),
+      unverifiedReturn: !verifiedCall,
+    );
+    await doc.reference.update({
       OrderKeys.status: OrderStatus.failedPendingVerification.value,
-      OrderKeys.attemptAudit: {
-        OrderKeys.callInitiatedAt: callInitiatedAt.toIso8601String(),
-        OrderKeys.callDurationSeconds: callDurationSeconds,
-        OrderKeys.driverLocation: {
-          OrderKeys.latitude: latitude,
-          OrderKeys.longitude: longitude,
-          OrderKeys.accuracyMeters: accuracyMeters,
-        },
-        OrderKeys.driverReason: reason.value,
-        OrderKeys.verificationDeadline:
-            now.add(verificationWindow).toIso8601String(),
-        OrderKeys.merchantIntervened: false,
-        OrderKeys.overrideNote: null,
-      },
+      OrderKeys.attemptAudit: OrderModel.auditMap(audit),
+      OrderKeys.attempts: FieldValue.arrayUnion([OrderModel.auditMap(audit)]),
+      OrderKeys.driverResponseDeadline: null,
       OrderKeys.updatedAt: now.toIso8601String(),
     });
+    unawaited(_pushNotification(
+      type: verifiedCall
+          ? NotificationType.failureVerified
+          : NotificationType.failureUnverified,
+      orderId: orderId,
+      severity: verifiedCall ? 'normal' : 'high',
+      message: verifiedCall
+          ? 'Verified failed attempt on ${order.trackingNumber}. '
+              'You can override or confirm within the window.'
+          : 'UNVERIFIED return declared for ${order.trackingNumber} '
+              '(no valid call proof). Immediate review recommended.',
+      driverId: order.assignedDriver.id,
+    ));
+    if (!verifiedCall) {
+      await _penalizeDriver(order.assignedDriver.id,
+          AppConstants.unverifiedDeclinePenalty);
+    }
   }
 
   @override
@@ -260,13 +370,123 @@ class FirestoreOrderRepository implements OrderRepository {
     if (query.docs.isEmpty) {
       throw StateError('Order $orderId not found');
     }
-    final order =
-        OrderModel.fromMap(query.docs.first.id, query.docs.first.data());
-    await query.docs.first.reference.update({
+    final doc = query.docs.first;
+    final order = OrderModel.fromMap(doc.id, doc.data());
+    await doc.reference.update({
       OrderKeys.status: OrderStatus.deliveredPaid.value,
       '${OrderKeys.financials}.${OrderKeys.amountCollected}':
           order.financials.totalCodAmount,
+      OrderKeys.driverResponseDeadline: null,
       OrderKeys.updatedAt: DateTime.now().toIso8601String(),
     });
+    unawaited(_pushNotification(
+      type: NotificationType.delivered,
+      orderId: orderId,
+      severity: 'normal',
+      message:
+          'Order ${order.trackingNumber} delivered and COD collected '
+          '(${order.financials.totalCodAmount.toStringAsFixed(0)} DZD).',
+      driverId: order.assignedDriver.id,
+    ));
+  }
+
+  @override
+  Future<void> overrideToRedelivery({
+    required String orderId,
+    String? note,
+  }) async {
+    final query = await _orders
+        .where(OrderKeys.orderId, isEqualTo: orderId)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) {
+      throw StateError('Order $orderId not found');
+    }
+    final doc = query.docs.first;
+    final order = OrderModel.fromMap(doc.id, doc.data());
+    final latest = order.audit?.withMerchantIntervention(note: note);
+    final now = DateTime.now();
+    await doc.reference.update({
+      OrderKeys.status: OrderStatus.outForDelivery.value,
+      if (latest != null)
+        OrderKeys.attemptAudit: OrderModel.auditMap(latest),
+      if (latest != null)
+        OrderKeys.attempts: FieldValue.arrayUnion([OrderModel.auditMap(latest)]),
+      OrderKeys.updatedAt: now.toIso8601String(),
+    });
+    unawaited(_pushNotification(
+      type: NotificationType.redispatched,
+      orderId: orderId,
+      severity: 'high',
+      message:
+          'Merchant overrode the failure claim for ${order.trackingNumber}. '
+          'Customer wants the product. Order re-dispatched to '
+          '${order.assignedDriver.name}.',
+      driverId: order.assignedDriver.id,
+    ));
+    await _penalizeDriver(
+        order.assignedDriver.id, AppConstants.provenLiePenalty);
+  }
+
+  @override
+  Future<void> confirmFailure({
+    required String orderId,
+    String? note,
+  }) async {
+    final query = await _orders
+        .where(OrderKeys.orderId, isEqualTo: orderId)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) {
+      throw StateError('Order $orderId not found');
+    }
+    final doc = query.docs.first;
+    final order = OrderModel.fromMap(doc.id, doc.data());
+    final latest = order.audit?.withMerchantIntervention(note: note);
+    final now = DateTime.now();
+    await doc.reference.update({
+      OrderKeys.status: OrderStatus.returned.value,
+      if (latest != null)
+        OrderKeys.attemptAudit: OrderModel.auditMap(latest),
+      if (latest != null)
+        OrderKeys.attempts: FieldValue.arrayUnion([OrderModel.auditMap(latest)]),
+      OrderKeys.updatedAt: now.toIso8601String(),
+    });
+    unawaited(_pushNotification(
+      type: NotificationType.returnedConfirmed,
+      orderId: orderId,
+      severity: 'normal',
+      message:
+          'Merchant confirmed the failure of ${order.trackingNumber}. '
+          'Order marked as returned.',
+      driverId: order.assignedDriver.id,
+    ));
+  }
+
+  Future<void> _pushNotification({
+    required NotificationType type,
+    required String orderId,
+    required String severity,
+    required String message,
+    required String driverId,
+  }) async {
+    try {
+      await _notifications.add({
+        NotificationKeys.type: type.value,
+        NotificationKeys.orderId: orderId,
+        NotificationKeys.severity: severity,
+        NotificationKeys.message: message,
+        NotificationKeys.driverId: driverId,
+        NotificationKeys.createdAt: DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _penalizeDriver(String driverId, int points) async {
+    try {
+      await _drivers.doc(driverId).update({
+        DriverKeys.trustScore: FieldValue.increment(-points),
+      });
+    } catch (_) {}
   }
 }

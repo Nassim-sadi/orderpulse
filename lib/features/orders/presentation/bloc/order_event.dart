@@ -18,14 +18,23 @@ class LoadDriverRunsheetEvent extends OrderEvent {
   List<Object?> get props => [driverId];
 }
 
+class LoadPendingVerificationsEvent extends OrderEvent {
+  const LoadPendingVerificationsEvent();
+}
+
 class CallInitiatedEvent extends OrderEvent {
-  const CallInitiatedEvent({required this.orderId, required this.clientPhone});
+  const CallInitiatedEvent({
+    required this.orderId,
+    required this.driverId,
+    required this.clientPhone,
+  });
 
   final String orderId;
+  final String driverId;
   final String clientPhone;
 
   @override
-  List<Object?> get props => [orderId, clientPhone];
+  List<Object?> get props => [orderId, driverId, clientPhone];
 }
 
 class AttemptDeliveryFailureEvent extends OrderEvent {
@@ -41,6 +50,30 @@ class AttemptDeliveryFailureEvent extends OrderEvent {
 
   @override
   List<Object?> get props => [orderId, reason, clientPhone];
+}
+
+class ConfirmUnverifiedDeclineEvent extends OrderEvent {
+  const ConfirmUnverifiedDeclineEvent({
+    required this.orderId,
+    required this.reason,
+    required this.clientPhone,
+  });
+
+  final String orderId;
+  final FailureReason reason;
+  final String clientPhone;
+
+  @override
+  List<Object?> get props => [orderId, reason, clientPhone];
+}
+
+class DismissUnverifiedPromptEvent extends OrderEvent {
+  const DismissUnverifiedPromptEvent(this.orders);
+
+  final List<OrderEntity> orders;
+
+  @override
+  List<Object?> get props => [orders];
 }
 
 class DeliveryConfirmedEvent extends OrderEvent {

@@ -7,6 +7,9 @@ class OrderModel {
   static OrderEntity fromMap(String id, Map<String, dynamic> map) {
     final auditMap =
         map[OrderKeys.attemptAudit] as Map<String, dynamic>?;
+    final attemptsList = (map[OrderKeys.attempts] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     return OrderEntity(
       id: id,
       trackingNumber:
@@ -19,6 +22,13 @@ class OrderModel {
       assignedDriver: _driverFromMap(
           map[OrderKeys.assignedDriver] as Map<String, dynamic>? ?? {}),
       audit: auditMap == null ? null : _auditFromMap(auditMap),
+      attempts: attemptsList.map(_auditFromMap).toList(growable: false),
+      callAttemptsCount:
+          (map[OrderKeys.callAttemptsCount] as num?)?.toInt() ?? 0,
+      driverResponseDeadline:
+          DateTime.tryParse(map[OrderKeys.driverResponseDeadline] as String? ?? ''),
+      driverResponseExpiredAt:
+          DateTime.tryParse(map[OrderKeys.driverResponseExpiredAt] as String? ?? ''),
       createdAt: DateTime.tryParse(map[OrderKeys.createdAt] as String? ?? '') ??
           DateTime.now(),
       updatedAt: DateTime.tryParse(map[OrderKeys.updatedAt] as String? ?? '') ??
@@ -49,6 +59,15 @@ class OrderModel {
           OrderKeys.driverPhone: o.assignedDriver.phone,
         },
         if (o.audit != null) OrderKeys.attemptAudit: _auditToMap(o.audit!),
+        if (o.attempts.isNotEmpty)
+          OrderKeys.attempts: o.attempts.map(_auditToMap).toList(),
+        OrderKeys.callAttemptsCount: o.callAttemptsCount,
+        if (o.driverResponseDeadline != null)
+          OrderKeys.driverResponseDeadline:
+              o.driverResponseDeadline!.toIso8601String(),
+        if (o.driverResponseExpiredAt != null)
+          OrderKeys.driverResponseExpiredAt:
+              o.driverResponseExpiredAt!.toIso8601String(),
         OrderKeys.createdAt: o.createdAt.toIso8601String(),
         OrderKeys.updatedAt: o.updatedAt.toIso8601String(),
       };
@@ -95,8 +114,11 @@ class OrderModel {
               DateTime.now(),
       merchantIntervened: m[OrderKeys.merchantIntervened] as bool? ?? false,
       overrideNote: m[OrderKeys.overrideNote] as String?,
+      unverifiedReturn: m[OrderKeys.unverifiedReturn] as bool? ?? false,
     );
   }
+
+  static Map<String, dynamic> auditMap(AttemptAudit a) => _auditToMap(a);
 
   static Map<String, dynamic> _auditToMap(AttemptAudit a) => {
         OrderKeys.callInitiatedAt: a.callInitiatedAt.toIso8601String(),
@@ -111,5 +133,6 @@ class OrderModel {
             a.verificationDeadline.toIso8601String(),
         OrderKeys.merchantIntervened: a.merchantIntervened,
         OrderKeys.overrideNote: a.overrideNote,
+        OrderKeys.unverifiedReturn: a.unverifiedReturn,
       };
 }

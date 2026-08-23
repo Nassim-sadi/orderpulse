@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/order_entity.dart';
 
+enum OrderActionError { dialerFailed, gpsFailed, generic }
+
 sealed class OrderState extends Equatable {
   const OrderState();
 
@@ -27,13 +29,31 @@ class OrderLoadedState extends OrderState {
 }
 
 class OrderActionFailureState extends OrderState {
-  const OrderActionFailureState(this.message, this.orders);
+  const OrderActionFailureState(this.code, this.orders, [this.detail]);
 
-  final String message;
+  final OrderActionError code;
+  final List<OrderEntity> orders;
+  final String? detail;
+
+  @override
+  List<Object?> get props => [code, orders, detail];
+}
+
+class UnverifiedDeclinePromptState extends OrderState {
+  const UnverifiedDeclinePromptState({
+    required this.orderId,
+    required this.reason,
+    required this.clientPhone,
+    required this.orders,
+  });
+
+  final String orderId;
+  final FailureReason reason;
+  final String clientPhone;
   final List<OrderEntity> orders;
 
   @override
-  List<Object?> get props => [message, orders];
+  List<Object?> get props => [orderId, reason, clientPhone, orders];
 }
 
 class OrderFailureState extends OrderState {

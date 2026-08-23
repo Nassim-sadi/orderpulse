@@ -49,6 +49,30 @@ class _HomeShellState extends State<HomeShell> {
 
   void _onTabTapped(int index) => setState(() => _tabIndex = index);
 
+  Future<void> _confirmSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+            'You will need to sign in again to access your run-sheet.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      context.read<AuthBloc>().add(const AuthSignOutRequested());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -69,10 +93,14 @@ class _HomeShellState extends State<HomeShell> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.pushNamed(context, '/settings'),
+          ),
+          IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),
-            onPressed: () =>
-                context.read<AuthBloc>().add(const AuthSignOutRequested()),
+            onPressed: _confirmSignOut,
           ),
         ],
       ),

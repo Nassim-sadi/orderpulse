@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/order_entity.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 class OrderStatusVisuals {
   const OrderStatusVisuals(this.color, this.label);
@@ -8,6 +9,18 @@ class OrderStatusVisuals {
   final Color color;
   final String label;
 }
+
+String localizedStatusLabel(AppLocalizations l10n, OrderStatus status) =>
+    switch (status) {
+      OrderStatus.pending => l10n.statusPending,
+      OrderStatus.confirmed => l10n.statusConfirmed,
+      OrderStatus.dispatched => l10n.statusDispatched,
+      OrderStatus.outForDelivery => l10n.statusOutForDelivery,
+      OrderStatus.deliveredPaid => l10n.statusDeliveredPaid,
+      OrderStatus.failedPendingVerification =>
+        l10n.statusPendingVerification,
+      OrderStatus.returned => l10n.statusReturned,
+    };
 
 OrderStatusVisuals statusVisuals(OrderStatus status) => switch (status) {
       OrderStatus.pending =>
@@ -42,7 +55,7 @@ class OrderStatusChip extends StatelessWidget {
         border: Border.all(color: visuals.color),
       ),
       child: Text(
-        visuals.label,
+        localizedStatusLabel(AppLocalizations.of(context), status),
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w800,

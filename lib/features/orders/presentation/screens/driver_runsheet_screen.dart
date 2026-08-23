@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/utils/formatters.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/order_entity.dart';
 import '../bloc/order_bloc.dart';
 import '../bloc/order_state.dart';
@@ -14,19 +15,18 @@ class DriverRunsheetScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<OrderBloc, OrderState>(
-      builder: (context, state) {
-        return switch (state) {
-          OrderLoadingState() => const Center(
-              child: CircularProgressIndicator(),
-            ),
-          OrderFailureState(:final message) => _ErrorView(message: message),
-          OrderLoadedState(:final orders) => _RunsheetList(orders: orders),
-          OrderActionFailureState(:final orders) => _RunsheetList(
-              orders: orders,
-              bannerMessage: state.message,
-            ),
-          OrderInitialState() => const SizedBox.shrink(),
-        };
+      builder: (context, state) => switch (state) {
+        OrderLoadingState() => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        OrderFailureState(:final message) => _ErrorView(message: message),
+        OrderLoadedState(:final orders) => _RunsheetList(orders: orders),
+        OrderActionFailureState(:final orders) => _RunsheetList(
+            orders: orders,
+          ),
+        UnverifiedDeclinePromptState(:final orders) =>
+          _RunsheetList(orders: orders),
+        OrderInitialState() => const SizedBox.shrink(),
       },
     );
   }
@@ -56,13 +56,13 @@ class _ErrorView extends StatelessWidget {
 }
 
 class _RunsheetList extends StatelessWidget {
-  const _RunsheetList({required this.orders, this.bannerMessage});
+  const _RunsheetList({required this.orders});
 
   final List<OrderEntity> orders;
-  final String? bannerMessage;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final deliveredToday = orders
         .where((o) => o.status == OrderStatus.deliveredPaid)
         .toList(growable: false);
@@ -74,17 +74,17 @@ class _RunsheetList extends StatelessWidget {
         .toList(growable: false);
 
     final sections = <String, List<OrderEntity>>{
-      'AWAITING VERIFICATION': awaiting,
-      'ACTIVE RUN': orders
+      l10n.sectionAwaitingVerification: awaiting,
+      l10n.sectionActiveRun: orders
           .where((o) => o.isActionable)
           .toList(growable: false),
-      'UPCOMING': orders
+      l10n.sectionUpcoming: orders
           .where((o) =>
               o.status == OrderStatus.pending ||
               o.status == OrderStatus.confirmed)
           .toList(growable: false),
-      'DELIVERED': deliveredToday,
-      'RETURNED': orders
+      l10n.sectionDelivered: deliveredToday,
+      l10n.sectionReturned: orders
           .where((o) => o.status == OrderStatus.returned)
           .toList(growable: false),
     };
@@ -92,35 +92,12 @@ class _RunsheetList extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        if (bannerMessage != null) ...[
-          Material(
-            color: Colors.red.withValues(alpha: .15),
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Colors.redAccent),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      bannerMessage!,
-                      style: const TextStyle(color: Colors.redAccent),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
         Row(
           children: [
             Expanded(
               child: _SummaryCard(
                 icon: Icons.local_shipping,
-                label: 'Remaining stops',
+                label: l10n.remainingStops,
                 value: '$activeStops',
               ),
             ),
@@ -128,7 +105,7 @@ class _RunsheetList extends StatelessWidget {
             Expanded(
               child: _SummaryCard(
                 icon: Icons.payments,
-                label: 'Cash collected',
+                label: l10n.cashCollected,
                 value: Formatters.dzd(cashCollected),
               ),
             ),
@@ -170,7 +147,7 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Color(0xFF4F7DF9)),
+          Icon(icon, size: 18, color: const Color(0xFF4F7DF9)),
           const SizedBox(height: 8),
           Text(value,
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
@@ -219,6 +196,7 @@ class _OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cod = order.financials.totalCodAmount;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -240,7 +218,7 @@ class _OrderCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  OrderStatusChip(status: order.status),
+                  Expanded(child: OrderStatusChip(status: order.status)),
                   Text(
                     Formatters.dzd(cod),
                     style: const TextStyle(
@@ -261,6 +239,27 @@ class _OrderCard extends StatelessWidget {
                 '${order.client.commune}, ${order.client.wilaya} • ${order.trackingNumber}',
                 style: const TextStyle(fontSize: 12, color: Colors.white54),
               ),
+              if (order.isActionable && order.callAttemptsCount == 0) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: .15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: Text(
+                    l10n.noCallYetBadge,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .5,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ),
+              ],
               if (order.isAwaitingVerification &&
                   order.audit != null) ...[
                 const SizedBox(height: 8),

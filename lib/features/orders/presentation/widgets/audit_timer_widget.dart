@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/utils/formatters.dart';
 
 class AuditTimerWidget extends StatefulWidget {
@@ -10,12 +10,12 @@ class AuditTimerWidget extends StatefulWidget {
     super.key,
     required this.deadline,
     this.compact = false,
-    this.totalWindow = AppConstants.verificationWindow,
+    this.totalWindow,
   });
 
   final DateTime deadline;
   final bool compact;
-  final Duration totalWindow;
+  final Duration? totalWindow;
 
   @override
   State<AuditTimerWidget> createState() => _AuditTimerWidgetState();
@@ -43,10 +43,13 @@ class _AuditTimerWidgetState extends State<AuditTimerWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final expired = _remaining.isNegative;
+    final window =
+        widget.totalWindow ?? const Duration(minutes: 15);
     final progress = expired
         ? 0.0
-        : (_remaining.inSeconds / widget.totalWindow.inSeconds).clamp(0.0, 1.0);
+        : (_remaining.inSeconds / window.inSeconds).clamp(0.0, 1.0);
 
     if (widget.compact) {
       return Chip(
@@ -56,7 +59,9 @@ class _AuditTimerWidgetState extends State<AuditTimerWidget> {
           color: expired ? Colors.redAccent : Colors.orange,
         ),
         label: Text(
-          expired ? 'CLOSED' : Formatters.countdown(_remaining),
+          expired
+              ? l10n.verificationWindowClosed
+              : Formatters.countdown(_remaining),
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
         ),
         visualDensity: VisualDensity.compact,
@@ -78,13 +83,17 @@ class _AuditTimerWidgetState extends State<AuditTimerWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                expired ? 'VERIFICATION WINDOW CLOSED' : 'MERCHANT VERIFICATION',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  letterSpacing: 1,
-                  color: expired ? Colors.redAccent : Colors.orange,
+              Expanded(
+                child: Text(
+                  expired
+                      ? l10n.verificationWindowClosed
+                      : l10n.merchantVerification,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 1,
+                    color: expired ? Colors.redAccent : Colors.orange,
+                  ),
                 ),
               ),
               Text(
@@ -109,8 +118,8 @@ class _AuditTimerWidgetState extends State<AuditTimerWidget> {
           const SizedBox(height: 10),
           Text(
             expired
-                ? 'No merchant intervention. This order can now be processed as returned.'
-                : 'The merchant has been alerted and can override this failure before the timer ends.',
+                ? l10n.windowClosedMessage
+                : l10n.merchantAlertedText,
             style: const TextStyle(fontSize: 12, color: Colors.white70),
           ),
         ],

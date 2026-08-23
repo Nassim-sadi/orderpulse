@@ -5,10 +5,19 @@ abstract interface class OrderRepository {
 
   Future<List<OrderEntity>> fetchDriverOrders(String driverId);
 
+  Stream<List<OrderEntity>> watchPendingVerifications();
+
   Future<void> ensureDemoData({
     required String driverId,
     required String driverName,
     required String driverPhone,
+  });
+
+  Future<void> logCallAttempt({
+    required String orderId,
+    required String driverId,
+    required String clientPhone,
+    required Duration responseWindow,
   });
 
   Future<void> reportDeliveryFailure({
@@ -20,7 +29,18 @@ abstract interface class OrderRepository {
     required double longitude,
     required double accuracyMeters,
     required Duration verificationWindow,
+    required bool verifiedCall,
   });
 
   Future<void> markDelivered({required String orderId});
+
+  Future<void> overrideToRedelivery({
+    required String orderId,
+    String? note,
+  });
+
+  Future<void> confirmFailure({
+    required String orderId,
+    String? note,
+  });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../domain/entities/auth_failure.dart';
 import '../../domain/entities/driver_profile.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
@@ -57,7 +58,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } on Exception catch (e) {
       emit(state.copyWith(
         status: AuthStatus.unauthenticated,
-        errorMessage: _mapError(e),
+        errorMessage: describeAuthFailure(e),
       ));
     }
   }
@@ -77,7 +78,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } on Exception catch (e) {
       emit(state.copyWith(
         status: AuthStatus.unauthenticated,
-        errorMessage: _mapError(e),
+        errorMessage: describeAuthFailure(e),
       ));
     }
   }
@@ -92,7 +93,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } on Exception catch (e) {
       emit(state.copyWith(
         status: AuthStatus.unauthenticated,
-        errorMessage: _mapError(e),
+        errorMessage: describeAuthFailure(e),
       ));
     }
   }
@@ -104,31 +105,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await repository.signOut();
   }
 
-  String _mapError(Exception e) {
-    final message = e.toString();
-    if (message.contains('invalid-credential') ||
-        message.contains('wrong-password') ||
-        message.contains('user-not-found')) {
-      return 'Invalid email or password.';
-    }
-    if (message.contains('email-already-in-use')) {
-      return 'An account already exists for this email.';
-    }
-    if (message.contains('weak-password')) {
-      return 'Password is too weak (minimum 6 characters).';
-    }
-    if (message.contains('invalid-email')) {
-      return 'That email address looks invalid.';
-    }
-    if (message.contains('network-request-failed')) {
-      return 'Network error. Check your connection.';
-    }
-    if (message.contains('ApiException') ||
-        message.contains('cancelled') ||
-        message.contains('Canceled')) {
-      return 'Google sign-in was cancelled.';
-    }
-    return 'Authentication failed. Please try again.';
+  static String describeAuthFailure(Exception e) {
+    if (e is! AuthFailure) return e.toString();
+    return switch (e.kind) {
+      AuthFailureKind.invalidCredentials => 'Invalid email or password.',
+      AuthFailureKind.emailInUse =>
+        'An account already exists for this email.',
+      AuthFailureKind.weakPassword =>
+        'Password is too weak (minimum 6 characters).',
+      AuthFailureKind.invalidEmail => 'That email address looks invalid.',
+      AuthFailureKind.network => 'Network error. Check your connection.',
+      AuthFailureKind.tooManyRequests =>
+        'Too many attempts. Please wait and try again.',
+      AuthFailureKind.googleCancelled => 'Google sign-in was cancelled.',
+      AuthFailureKind.googleNoAccount =>
+        'No Google account found on this device. Add one in Settings > Accounts, then try again.',
+      AuthFailureKind.googleUnavailable =>
+        'Google Sign-In failed. Check that Google Play Services are up to date and the app is signed correctly.',
+      AuthFailureKind.unknown => 'Authentication failed. Please try again.',
+    };
   }
 
   @override

@@ -32,6 +32,24 @@ enum FailureReason {
       values.firstWhere((r) => r.value == value);
 }
 
+enum NotificationType {
+  delivered('DELIVERED'),
+  failureVerified('FAILURE_VERIFIED'),
+  failureUnverified('FAILURE_UNVERIFIED'),
+  driverNoResponse('DRIVER_NO_RESPONSE'),
+  returnedAuto('RETURNED_AUTO'),
+  returnedConfirmed('RETURNED_CONFIRMED'),
+  redispatched('REDISPATCHED');
+
+  const NotificationType(this.value);
+
+  final String value;
+
+  static NotificationType fromValue(String value) =>
+      values.firstWhere((n) => n.value == value,
+          orElse: () => NotificationType.delivered);
+}
+
 class ClientDetails {
   const ClientDetails({
     required this.name,
@@ -102,6 +120,7 @@ class AttemptAudit {
     required this.verificationDeadline,
     this.merchantIntervened = false,
     this.overrideNote,
+    this.unverifiedReturn = false,
   });
 
   final DateTime callInitiatedAt;
@@ -111,6 +130,18 @@ class AttemptAudit {
   final DateTime verificationDeadline;
   final bool merchantIntervened;
   final String? overrideNote;
+  final bool unverifiedReturn;
+
+  AttemptAudit withMerchantIntervention({String? note}) => AttemptAudit(
+        callInitiatedAt: callInitiatedAt,
+        callDurationSeconds: callDurationSeconds,
+        location: location,
+        reason: reason,
+        verificationDeadline: verificationDeadline,
+        merchantIntervened: true,
+        overrideNote: note ?? overrideNote,
+        unverifiedReturn: unverifiedReturn,
+      );
 }
 
 class OrderEntity extends Equatable {
@@ -124,6 +155,10 @@ class OrderEntity extends Equatable {
     required this.createdAt,
     required this.updatedAt,
     this.audit,
+    this.attempts = const [],
+    this.callAttemptsCount = 0,
+    this.driverResponseDeadline,
+    this.driverResponseExpiredAt,
   });
 
   final String id;
@@ -133,6 +168,10 @@ class OrderEntity extends Equatable {
   final OrderStatus status;
   final DriverRef assignedDriver;
   final AttemptAudit? audit;
+  final List<AttemptAudit> attempts;
+  final int callAttemptsCount;
+  final DateTime? driverResponseDeadline;
+  final DateTime? driverResponseExpiredAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -142,6 +181,20 @@ class OrderEntity extends Equatable {
   bool get isActionable =>
       status == OrderStatus.outForDelivery ||
       status == OrderStatus.dispatched;
+
+  bool get hasActiveResponseTimer {
+    if (!isActionable || driverResponseDeadline == null) return false;
+    return driverResponseDeadline!.isAfter(DateTime.now());
+  }
+
+  bool get responseTimerExpired {
+    if (!isActionable ||
+        driverResponseDeadline == null ||
+        driverResponseExpiredAt != null) {
+      return false;
+    }
+    return driverResponseDeadline!.isBefore(DateTime.now());
+  }
 
   bool get verificationExpired {
     final deadline = audit?.verificationDeadline;
@@ -154,7 +207,12 @@ class OrderEntity extends Equatable {
     OrderStatus? status,
     Financials? financials,
     AttemptAudit? audit,
+    List<AttemptAudit>? attempts,
+    int? callAttemptsCount,
+    DateTime? driverResponseDeadline,
+    DateTime? driverResponseExpiredAt,
     DateTime? updatedAt,
+    bool clearDriverTimer = false,
   }) =>
       OrderEntity(
         id: id,
@@ -166,6 +224,14 @@ class OrderEntity extends Equatable {
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         audit: audit ?? this.audit,
+        attempts: attempts ?? this.attempts,
+        callAttemptsCount: callAttemptsCount ?? this.callAttemptsCount,
+        driverResponseDeadline: clearDriverTimer
+            ? null
+            : (driverResponseDeadline ?? this.driverResponseDeadline),
+        driverResponseExpiredAt: clearDriverTimer
+            ? null
+            : (driverResponseExpiredAt ?? this.driverResponseExpiredAt),
       );
 
   @override
@@ -175,8 +241,11 @@ class OrderEntity extends Equatable {
         client.phone,
         financials.totalCodAmount,
         status,
-        audit?.verificationDeadline,
-        audit?.merchantIntervened,
+        audit,
+        attempts.length,
+        callAttemptsCount,
+        driverResponseDeadline,
+        driverResponseExpiredAt,
         updatedAt,
       ];
 }

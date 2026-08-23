@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/orders/domain/entities/order_entity.dart';
 import '../features/orders/presentation/screens/order_detail_screen.dart';
+import '../features/settings/presentation/settings_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -15,6 +16,10 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     '/order-detail' => MaterialPageRoute<void>(
         builder: (_) =>
             OrderDetailScreen(order: settings.arguments as OrderEntity),
+        settings: settings,
+      ),
+    '/settings' => MaterialPageRoute<void>(
+        builder: (_) => const SettingsScreen(),
         settings: settings,
       ),
     _ => null,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
@@ -40,8 +41,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Driver registration')),
+      appBar: AppBar(title: Text(l10n.registerTitle)),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -56,48 +58,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: _nameController,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Full name',
-                        prefixIcon: Icon(Icons.badge_outlined),
+                      decoration: InputDecoration(
+                        labelText: l10n.nameLabel,
+                        prefixIcon: const Icon(Icons.badge_outlined),
                       ),
                       validator: (v) =>
-                          (v == null || v.trim().length < 3) ? 'Enter your full name' : null,
+                          (v == null || v.trim().length < 3) ? l10n.nameLabel : null,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone number',
-                        prefixIcon: Icon(Icons.phone_outlined),
+                      decoration: InputDecoration(
+                        labelText: l10n.phoneLabel,
+                        prefixIcon: const Icon(Icons.phone_outlined),
                         hintText: '05xxxxxxxx',
                       ),
                       validator: (v) => (v == null || v.trim().length < 9)
-                          ? 'Enter a valid phone number'
+                          ? l10n.phoneLabel
                           : null,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.alternate_email),
+                      decoration: InputDecoration(
+                        labelText: l10n.emailLabel,
+                        prefixIcon: const Icon(Icons.alternate_email),
                       ),
                       validator: (v) =>
-                          (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
+                          (v == null || !v.contains('@')) ? l10n.enterValidEmail : null,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
                       onFieldSubmitted: (_) => _submit(context),
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                      decoration: InputDecoration(
+                        labelText: l10n.passwordLabel,
+                        prefixIcon: const Icon(Icons.lock_outline),
                       ),
                       validator: (v) => (v == null || v.length < 6)
-                          ? 'Minimum 6 characters'
+                          ? l10n.minSixCharacters
                           : null,
                     ),
                     const SizedBox(height: 22),
@@ -110,9 +112,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
                               ),
-                              child: const Text('Create driver account',
+                              child: Text(l10n.registerButton,
                                   style:
-                                      TextStyle(fontWeight: FontWeight.w800)),
+                                      const TextStyle(fontWeight: FontWeight.w800)),
                             ),
                     ),
                   ],

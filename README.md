@@ -1,5 +1,10 @@
 # OrderPulse
 
+[![CI](https://github.com/Nassim-sadi/orderpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Nassim-sadi/orderpulse/actions/workflows/ci.yml)
+![Flutter](https://img.shields.io/badge/flutter-3.47-blue)
+![Firebase](https://img.shields.io/badge/backend-firebase-orange)
+![Tests](https://img.shields.io/badge/tests-39%20passing-green)
+
 A driver-facing delivery app for cash-on-delivery e-commerce in markets like Algeria,
 where most orders are paid in cash at the door and the biggest profit leak is drivers
 marking orders as "customer unresponsive" without ever trying to reach them.
